@@ -1,78 +1,69 @@
-'''
-AR(1) process:
-y_t = phi*y+t-1 + epsilon_t
-we will take epsilon_t ~ Normal(0, v) in the first instance and go from there
+##################################
+### Graphs for AR(p) processes ###
+##################################
 
-'''
+#arima.sim or other methods don't generate non-stationary time series so this is done manually.
 
-t <- seq(0, 10, 0.01)
-y <- rep(0, length(t))
+T=1000
 
-phi = 0.3
-v=1
-set.seed(1)
-for(i in 2:length(t)){
-  y[i] = rnorm(1, phi*y[i-1], v)
+########################
+# Non-stationary AR(1) #
+########################
+
+y1=rep(0,T)
+set.seed(44)
+for(t in 2:T){
+  y1[t] = rnorm(1,1.1*y1[t-1], 1)
 }
-plot(t,y, type = 'l')
 
-#make this a function, want to vary phi and v
-series_reg <- function(phi, v) {
-  y <- rep(0, length(t))
-  for(i in 2:length(t)){
-    y[i] = rnorm(1, phi*y[i-1], v)
+plot(ts(y1),col=3,lwd=2, main = 'AR(1) Model 1',ylab=NULL,xlab='Time')
+
+########################
+# Stationary AR(1)     #
+########################
+
+y2=rep(0,T)
+set.seed(44)
+for(t in 2:T){
+  y2[t] = rnorm(1,0.9*y2[t-1], 1)
+}
+
+plot(ts(y2),col=4,lwd=1.5, main = 'AR(1) Model 2',ylab=NULL,xlab='Time')
+
+########################
+# Random Walk AR(1)    #
+########################
+
+y3=rep(0,T)
+set.seed(44)
+for(t in 2:T){
+  y3[t] = rnorm(1,y3[t-1], 1)
+}
+
+plot(ts(y3),col=2,lwd=1.5, main = 'AR(1) Model 3',ylab=NULL,xlab='Time')
+
+
+#########################
+# Stationary region     #
+#########################
+
+#Transformation [-1,1]^p -> C_p
+r2phi <- function(r){
+  p = length(r)
+  mat = diag(as.numeric(r)) #rkk = rk
+  for(k in 2:p){
+    for(i in 1:(k-1)){
+      mat[i,k] = mat[i,(k-1)]-r[k]*mat[(k-i),(k-1)]
+    }
   }
-  return(y)
+  return(as.numeric(mat[,p]))
 }
-y.data <- data.frame("t" = t,
-                     "ts1" = series_reg(0.1, 1),
-                     "ts2" = series_reg(0.4, 1),
-                     "ts3" = series_reg(0.7, 1),
-                     "ts4" = series_reg(-0.2, 1))
 
-
-ggplot2::ggplot(data = y.data) +
-  ggplot2::geom_line(mapping = ggplot2::aes(x = t, y = ts1, color = "red")) +
-  ggplot2::geom_line(mapping = ggplot2::aes(x = t, y = ts2, color = "blue")) +
-  ggplot2::geom_line(mapping = ggplot2::aes(x = t, y = ts3, color = "green")) +
-  ggplot2::geom_line(mapping = ggplot2::aes(x = t, y = ts4, color = "purple"))
-  
-
-#want a general AR(p) process to model, requires effort
-
-#this is going to be one iteration of the time series i.e. y_t = f(y_t-1), 
-#then another function will apply that to data
-
-arp_process <- function(phi, xt1){
-  #want to use state space representation
-  p <- length(phi)
-  
-  g <- diag(x=1, nrow = p, ncol = p)[-p,]
-  G <- rbind(phi, g)
-  f <- c(1, rep(0, p-1))
-  
-  omegat <- c(rnorm(1, 0, v), rep(0,p-1))
-  
-  xt <- G%*%xt1 + omegat
-  yt <- t(f)%*%xt
-  
-  rm(list = c('p', 'g', 'G', 'f', 'xt', 'omegat'))
-  
-  return(yt)
+#sample
+samp=runif(10000,-1,1)
+sampmat=matrix(samp,nrow=2000,ncol=5)
+statsamp=matrix(0,2000,5)
+for(i in 1:nrow(statsamp)){
+  statsamp[i,]=r2phi(sampmat[i,])
 }
-#need some fake data
-arp_process(rep(0.1, 4), c(5,4,3,6))
-#good thing: this makes a functional style operation possible which means we can use apply()
-
-#we want fake data now - would have to specify the first p values of the series then let it go
-
-yt <- c(2,3,2,3,4,5, rep(0,995))
-
-for(i in 7:length(yt)){
-  yt[i] <- arp_process(rep(0.1,6), yt[(i-1):(i-6)])
-}
-plot(ts(yt))
-acf(yt)
-
-
-#we have made some headway into the actual generation of the model. Now we turn to inference.
+pairs(statsamp,col='2',pch=20, labels=c(1:5))
